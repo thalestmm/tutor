@@ -1,0 +1,48 @@
+[project]
+name = "tutor"
+version = "0.1.0"
+description = "Local study harness: PDF reader with a page-aware AI tutor"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pymupdf>=1.24",
+    "langgraph>=0.2",
+    "langgraph-checkpoint-sqlite>=2.0",
+    "langchain-openai>=0.2",
+    "python-multipart>=0.0.9",
+    "python-dotenv>=1.0",
+    "aiosqlite>=0.20",
+]
+
+[project.scripts]
+tutor = "tutor.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.17.0",
+    "mypy>=2.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tutor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's File()/Form() dependency defaults are idiomatic despite B008
+"src/tutor/routes/*" = ["B008"]
