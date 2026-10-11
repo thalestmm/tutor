@@ -1,6 +1,6 @@
-import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { marked } from "marked";
-import renderMathInElement from "katex/contrib/auto-render";
+import katex from "katex";
 import {
   askStream,
   createThread,
@@ -18,6 +18,31 @@ import { cn } from "~/lib/utils";
 
 marked.use({ breaks: true });
 
+const MATH_RE =
+  /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\$\n]+?)\$/g;
+
+function mdHtml(text: string): string {
+  const math: { tex: string; display: boolean }[] = [];
+  const protectedText = text.replace(
+    MATH_RE,
+    (_m, dd: string | undefined, br: string | undefined, rp: string | undefined, inline: string | undefined) => {
+      const tex = dd ?? br ?? rp ?? inline ?? "";
+      math.push({ tex, display: dd != null || br != null });
+      return `%%MATH${math.length - 1}%%`;
+    },
+  );
+  let html = marked.parse(protectedText, { breaks: true }) as string;
+  html = html.replace(/%%MATH(\d+)%%/g, (_m, i: string) => {
+    const { tex, display } = math[Number(i)];
+    try {
+      return katex.renderToString(tex, { displayMode: display, throwOnError: false });
+    } catch {
+      return display ? `$$${tex}$$` : `$${tex}$`;
+    }
+  });
+  return html;
+}
+
 const MODELS = [
   "anthropic/claude-sonnet-4.5",
   "anthropic/claude-haiku-4.5",
@@ -27,17 +52,6 @@ const MODELS = [
   "google/gemini-2.5-flash",
 ];
 
-const DELIMITERS = [
-  { left: "$$", right: "$$", display: true },
-  { left: "\\[", right: "\\]", display: true },
-  { left: "$", right: "$", display: false },
-  { left: "\\(", right: "\\)", display: false },
-];
-
-function mdHtml(text: string): string {
-  return marked.parse(text, { breaks: true }) as string;
-}
-
 interface BubbleProps {
   msg: Msg;
   onGrow: () => void;
@@ -45,19 +59,11 @@ interface BubbleProps {
 
 function Bubble(props: BubbleProps) {
   let el!: HTMLDivElement;
-  createEffect(
-    on(
-      () => props.msg.content,
-      (content) => {
-        el.innerHTML = mdHtml(content);
-        if (/[$\\]/.test(content)) {
-          renderMathInElement(el, { delimiters: DELIMITERS, throwOnError: false });
-        }
-        props.onGrow();
-      },
-      { defer: true },
-    ),
-  );
+  createEffect(() => {
+    const html = mdHtml(props.msg.content);
+    if (el.innerHTML !== html) el.innerHTML = html;
+    props.onGrow();
+  });
   return (
     <div
       ref={el}
@@ -68,7 +74,6 @@ function Bubble(props: BubbleProps) {
           : "self-start border bg-card",
         props.msg.streaming && "opacity-80",
       )}
-      innerHTML={mdHtml(props.msg.content)}
     />
   );
 }

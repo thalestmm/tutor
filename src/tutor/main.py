@@ -75,7 +75,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
 def _spa(index: Path):
     if index.is_file():
-        return FileResponse(index)
+        # The SPA shell must never be cached: each build emits new hashed asset
+        # filenames and deletes the old ones, so a stale index.html would point
+        # at missing bundles.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
     return HTMLResponse(SPA_NOT_BUILT, status_code=503)
 
 
